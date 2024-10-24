@@ -6,31 +6,33 @@ package Clases;
 
 
 import java.util.Random;
-import java.util.concurrent.Semaphore;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+// En Cafeteria Utilizamos Monitores y Metodo Sincronizados 
 
 public class Confiteria {
 
     private static final int CAPACIDAD = 100;
-    private Semaphore capacidad;
+    private int capacidadDisponible = CAPACIDAD;
     private int plataObtenida = 0;
-    private Semaphore caja = new Semaphore(1, true);
-    private Semaphore mostradoresComida = new Semaphore(2);
-    private Semaphore mostradoresPostre = new Semaphore(1);
     private Comida[] menuComidas = {new Comida(10, "hamburguesa"),
         new Comida(5, "choripan"),
         new Comida(10, "pizza"),
         new Comida(15, "guiso"),
         new Comida(20, "tiramisu"),
         new Comida(25, "lemon pie")};
+    
+    private int mostradoresComidaDisponibles = 2;
+    private int mostradoresPostreDisponibles = 1;
 
-    public Confiteria() {
-        this.capacidad = new Semaphore(CAPACIDAD, true);
-    }
-
-    public boolean entrar() throws InterruptedException {
-        return capacidad.tryAcquire();
+    public synchronized boolean entrar() {
+        if (capacidadDisponible > 0) {
+            capacidadDisponible--;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     private int random(int limInferior, int limSuperior) {
@@ -42,57 +44,75 @@ public class Confiteria {
         try {
             int comida;
             int postre;
-            
-            caja.acquire();
-            try {
-                // Hace pedido
+
+            // Seccion sincronizado para la utilizacion de la caja donde se determina que va consumir y se paga
+            synchronized (this) {
+                // Elige la comida y el postre, utilizando un random.
                 comida = random(0, 3);
-                postre = random(4, 5);
-                
-                // Pagando en caja...
-                plataObtenida += menuComidas[comida].getCosto();
-                
-                // Si postre no está incluido, no se paga por postre.
-                if (postre != 5) {
-                    plataObtenida += menuComidas[postre].getCosto();
+                postre = random(4, 6); // La opcion Numero 6, hace refencia a que no eligue postre
+
+                // Paga su comida
+                plataObtenida = plataObtenida +  menuComidas[comida].getCosto();
+
+                // Si es distinto de 6, es porque quiere un postre
+                if (postre != 6) {
+                    plataObtenida = plataObtenida + menuComidas[postre].getCosto();
                 }
-            } finally {
-                caja.release();
+            }
+
+            // Bloque sincronizado para los mostradores de comida (Hay 2)
+            synchronized (this) {
+                while (mostradoresComidaDisponibles == 0) {
+                    wait();
+                }
+                mostradoresComidaDisponibles--;
             }
             
-            mostradoresComida.acquire();
             try {
                 // Tomar comida
-                System.out.println(" [Confiteria] ["+Thread.currentThread().getName() + "] tomó su comida.");
+                System.out.println(" [Confiteria] [" + Thread.currentThread().getName() + "] tomo su comida.");
             } finally {
-                mostradoresComida.release();
+                synchronized (this) {
+                    mostradoresComidaDisponibles++;
+                    notifyAll();
+                }
             }
-            
-            // Comer la comida
+
+            // Simula comer la comida
             Thread.sleep(random(1000, 2000));
-            
-            if (postre != 5) {
-                mostradoresPostre.acquire();
+
+            if (postre != 6) {
+                // Bloque sincronizado para mostradores de postre
+                synchronized (this) {
+                    while (mostradoresPostreDisponibles == 0) {
+                        wait();
+                    }
+                    mostradoresPostreDisponibles--;
+                }
                 try {
                     // Tomar postre
-                    System.out.println(" [Confiteria] ["+Thread.currentThread().getName() + "]  tomó su postre.");
+                    System.out.println(" [Confiteria] [" + Thread.currentThread().getName() + "] tomó su postre.");
                 } finally {
-                    mostradoresPostre.release();
+                    synchronized (this) {
+                        mostradoresPostreDisponibles++;
+                        notifyAll();
+                    }
                 }
-                
+
                 // Comer el postre
                 Thread.sleep(random(1000, 2000));
             }
-        }   catch (InterruptedException ex) {
+        } catch (InterruptedException ex) {
             Logger.getLogger(Confiteria.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
-    public void salir() {
-        capacidad.release();
+    public synchronized void salir() {
+        capacidadDisponible++;
+        notifyAll();
     }
 
-    public int getPlataObtenida() {
+    public synchronized int getPlataObtenida() {
         return plataObtenida;
     }
 }

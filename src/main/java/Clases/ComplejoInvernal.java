@@ -89,9 +89,7 @@ public class ComplejoInvernal {
     }
 
     
-    /* Método para que los instructores esperen en la cabina hasta que los esquiadores estén listos.
-    El instructor espera en la cabina hasta que 4 esquiadores estén preparados para la clase.  
-    Utiliza un lock y una barrera para sincronizar la llegada de los esquiadores.*/
+    // Metodos relacionados a acciones que toma el "Instructor"
     public void esperarEnCabina(int barreraCorrespondiente) {
         try {
             accesoClase.lock();
@@ -131,20 +129,20 @@ public class ComplejoInvernal {
         }
     }
 
-    /*Método para que el instructor imparta la clase, Simula que el instructor da una clase durante 8 segundos y luego libera a los esquiadores. */
     public void darClase(int barreraCorrespondiente) {
         try {
+            
             System.out.println(" [" + Thread.currentThread().getName() + "] dando su Clase  " + (barreraCorrespondiente + 1));
-            TimeUnit.SECONDS.sleep(8); // Simula la duración de la clase
+            TimeUnit.SECONDS.sleep(8);
             System.out.println(" [" + Thread.currentThread().getName() + "] Terminado su Clase  " + (barreraCorrespondiente + 1));
             postClass[barreraCorrespondiente].release(4);
+            
         } catch (InterruptedException ex) {
             Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
-    /* Método para que los esquiadores tomen una clase. Los esquiadores se preparan para la clase y 
-    esperan al instructor. Cuando hay suficientes esquiadores, se les asigna una clase. */
+    // Metodos relacionados a acciones que toma el "Esquiador"
     public int preClase() {
         int claseCorrespondiente = -1;
         try {
@@ -178,7 +176,6 @@ public class ComplejoInvernal {
         return claseCorrespondiente;
     }
 
-    /* Método para que el esquiador finalice su clase. Los esquiadores esperan a que termine la clase y son liberados. */
     public void tenerClase(int miClase) {
         try {
             postClass[miClase].acquire();
@@ -188,27 +185,21 @@ public class ComplejoInvernal {
         }
     }
 
-    /* Método para que los esquiadores accedan a los medios de elevación. Permite que el esquiador use el molinete para acceder a los medios de elevación (sillas). */
+
+    //Metodo relacionado a los Medios de Elevacion
     public void accederMedio(int eleccionSilla) {
         medios.get(eleccionSilla).usarMolinete();
     }
 
-    /* Método para acceder a la confitería. Intenta que el esquiador entre a la confitería. Si tiene éxito, retorna true. */
+    // Metodos relacionados a la "Cafeteria"
     public boolean accederConfiteria() {
-        try {
-            return confiteria.entrar();
-        } catch (InterruptedException ex) {
-            Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        return false;
+        return confiteria.entrar();
     }
-
-    // Método para que los esquiadores se sirvan en la confitería
+    
     public void servirseConfiteria() {
         confiteria.servir();
     }
 
-    // Método para salir de la confitería
     public void salirConfiteria() {
         confiteria.salir();
     }
