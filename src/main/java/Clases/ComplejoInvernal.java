@@ -39,7 +39,7 @@ public class ComplejoInvernal {
     private final Semaphore postClass[] = {new Semaphore(0, true),new Semaphore(0, true),new Semaphore(0, true),new Semaphore(0, true),new Semaphore(0, true)};
     private final Confiteria confiteria = new Confiteria();
 
-    // Constructor
+    // Metodos relacionados al "Complejo Invernal"
     public ComplejoInvernal() {
         // Crear 4 medios de elevación con 1, 2, 3 y 4 molinetes respectivamente
         for (int i = 1; i <= 4; i++) {
@@ -75,20 +75,16 @@ public class ComplejoInvernal {
         }, 0, 5, TimeUnit.SECONDS); // Simula una hora por segundo para rapidez
     }
 
-    // Método para cerrar los medios de elevación
     private void cerrarMediosElevacion() {
         System.out.println(" [Complejo] Medios de elevación cerrados.");
         for (MedioElevacion medio : medios) {
             medio.cerrar();
         }
     }
-    
-    /* Método para verificar si el complejo está abierto. Devuelve verdadero si la hora actual está dentro del horario de apertura y cierre del complejo. */
-    public boolean estaAbierto() {
+        public boolean estaAbierto() {
         return horaActual.get() >= HORA_APERTURA && horaActual.get() < HORA_CIERRE;
     }
 
-    
     // Metodos relacionados a acciones que toma el "Instructor"
     public void esperarEnCabina(int barreraCorrespondiente) {
         try {
