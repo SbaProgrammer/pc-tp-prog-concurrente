@@ -5,7 +5,6 @@
 package Clases;
 
 // Clase principal del complejo invernal
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
@@ -28,15 +27,13 @@ public class ComplejoInvernal {
 
     private final List<MedioElevacion> medios = new ArrayList<>();
     private static final int HORA_APERTURA = 10, HORA_CIERRE = 17;
-    private final AtomicInteger cantEsperandoClase = new AtomicInteger(0);
-    private final AtomicInteger barreraLibre = new AtomicInteger(0);
-    private final AtomicInteger horaActual = new AtomicInteger(9);
+    private final AtomicInteger cantEsperandoClase = new AtomicInteger(0), proximaClase = new AtomicInteger(0), horaActual = new AtomicInteger(9), cantParaClase = new AtomicInteger(0);
+
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     private final Lock accesoClase = new ReentrantLock(true);
-    private final Condition esperaCabina = accesoClase.newCondition();  // Usamos la condición ya existente
-    private final Semaphore esquiadoresListos = new Semaphore(0, true), instructorAvisaProximoInstructor = new Semaphore(0); // Controla cuándo los esquiadores pueden avanzar
-    private final Semaphore postClass[] = {new Semaphore(0, true),new Semaphore(0, true),new Semaphore(0, true),new Semaphore(0, true),new Semaphore(0, true)};
+    private final Condition cabina = accesoClase.newCondition(), asientos = accesoClase.newCondition();  // Usamos la condición ya existente
+    private final Semaphore postClass[] = {new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true)};
     private final Confiteria confiteria = new Confiteria();
 
     // Metodos relacionados al "Complejo Invernal"
@@ -48,14 +45,12 @@ public class ComplejoInvernal {
 
         // Crear barreras para cada clase concurrente
         for (int i = 0; i < NUM_BARRERAS; i++) {
-            final int claseId = i;
             barrerasClases.add(new CyclicBarrier(5, new Runnable() {
                 @Override
                 public void run() {
-                        System.out.println(" [Complejo] Clase " + (claseId + 1) + ": Instructor y esquiadores LISTOS para la clase.");
+                    System.out.println(" [Complejo] Iniciando Procedimiento de Clase");
                 }
             }));
-            //semaforosListos.add(new Semaphore(0)); // Semáforo para cada barrera
         }
 
         // Iniciar Simulación
@@ -81,58 +76,71 @@ public class ComplejoInvernal {
             medio.cerrar();
         }
     }
-        public boolean estaAbierto() {
+
+    public boolean estaAbierto() {
         return horaActual.get() >= HORA_APERTURA && horaActual.get() < HORA_CIERRE;
     }
 
     // Metodos relacionados a acciones que toma el "Instructor"
-    public void esperarEnCabina(int barreraCorrespondiente) {
+    public boolean esperarEnCabina(int claseCorrespondiente) {
+        boolean daraClases = true;
         try {
             accesoClase.lock();
             System.out.println(" [" + Thread.currentThread().getName() + "] Esperando en Cabina.");
 
             // Espera hasta que haya 4 esquiadores listos o se cierre el complejo
-            while ((cantEsperandoClase.get() < 4 || barreraLibre.get() != 0) && estaAbierto()) {
-                esperaCabina.await(14, TimeUnit.SECONDS); // Espera por un tiempo limitado
-
-                if (cantEsperandoClase.get() < 4 && cantEsperandoClase.get() >= 1 && barreraLibre.get() == 0) {
-                    esquiadoresListos.release(cantEsperandoClase.get());
+            while ((cantEsperandoClase.get() < 4 || proximaClase.get() != 0) && estaAbierto() && daraClases) {
+                cabina.await(15, TimeUnit.SECONDS); // Espera por un tiempo limitado
+                // System.out.println(" [" + Thread.currentThread().getName() + "] Desperto");
+                if (cantEsperandoClase.get() < 4) {
+                    //System.out.println("Entro 1 ?");
+                    asientos.signalAll();
+                    if (!estaAbierto()) {
+                        daraClases = false;
+                    }
                 }
             }
-
-            barreraLibre.set(barreraCorrespondiente);
-            esquiadoresListos.release(4); // Permite que los esquiadores avancen
-            
-            instructorAvisaProximoInstructor.acquire(4);
-            cantEsperandoClase.addAndGet(-4);
-            barreraLibre.set(0);
-            if (cantEsperandoClase.get() >= 4) {
-                esperaCabina.signal();
+            //System.out.println("Salio"); 
+            if (daraClases) {
+                // System.out.println("Entro 2 ?");
+                proximaClase.set(claseCorrespondiente);
+                // Le podria avisar a 4
+                asientos.signalAll();                
+                accesoClase.unlock();
+                 
+                barrerasClases.get(claseCorrespondiente).await(); // El instructor espera en la barrera
+                proximaClase.set(0);
+                cantParaClase.addAndGet(-4);
+                
+                accesoClase.lock();
+                try {
+                    if (cantEsperandoClase.get() >= 4) {
+                        
+                        cabina.signal();
+                    }
+                } finally {
+                    accesoClase.unlock();
+                }
+            } else{
+                accesoClase.unlock();
             }
             
         } catch (InterruptedException ex) {
             Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
-        }finally {
-            try {
-                accesoClase.unlock();
-                barrerasClases.get(barreraCorrespondiente).await(); // El instructor espera en la barrera
-            } catch (InterruptedException ex) {
-                Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (BrokenBarrierException ex) {
-                Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
-            }
-
-        }
+        } catch (BrokenBarrierException ex) {
+            Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
+        } 
+        return daraClases;
     }
 
-    public void darClase(int barreraCorrespondiente) {
+    public void darClase(int claseCorrespondiente) {
         try {
-            
-            System.out.println(" [" + Thread.currentThread().getName() + "] dando su Clase  " + (barreraCorrespondiente + 1));
+
+            System.out.println(" [" + Thread.currentThread().getName() + "] dando su Clase  " + (claseCorrespondiente));
             TimeUnit.SECONDS.sleep(8);
-            System.out.println(" [" + Thread.currentThread().getName() + "] Terminado su Clase  " + (barreraCorrespondiente + 1));
-            postClass[barreraCorrespondiente].release(4);
-            
+            System.out.println(" [" + Thread.currentThread().getName() + "] Terminado su Clase  " + (claseCorrespondiente));
+            postClass[claseCorrespondiente].release(4);
+
         } catch (InterruptedException ex) {
             Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -141,32 +149,44 @@ public class ComplejoInvernal {
     // Metodos relacionados a acciones que toma el "Esquiador"
     public int preClase() {
         int claseCorrespondiente = -1;
+        boolean hayClase = true;
         try {
             accesoClase.lock();
             try {
                 cantEsperandoClase.incrementAndGet();
                 System.out.println(" [" + Thread.currentThread().getName() + "] Esperando para la clase. Esquiador nro: " + cantEsperandoClase.get());
 
-                // Verificación de esquiadores suficientes: Si hay suficientes esquiadores, despierta al instructor
+                // Verificacion de esquiadores suficientes: Si hay suficientes esquiadores, despierta al instructor
                 if (cantEsperandoClase.get() >= 4) {
-                    esperaCabina.signalAll();
+                    cabina.signal();
+                    //System.out.println(" [" + Thread.currentThread().getName() + "] Le avisa al instructor");
                 }
-                
+
+                //Esperan a que el instructor les avise
+                while ((proximaClase.get() == 0 || cantParaClase.get() >= 4 ) && hayClase )  {
+                    System.out.println(" [" + Thread.currentThread().getName() + "] Espera en los asientos ");
+                    asientos.await();
+                    
+                    if (cantEsperandoClase.get() < 4 && proximaClase.get() == 0) {
+                        //Si fueron avisados y no habian 4 es porque se tienen q retirar
+                        hayClase = false;
+                    }
+                }
+                cantEsperandoClase.addAndGet(-1);
+                cantParaClase.addAndGet(1);
+
             } finally {
-                accesoClase.unlock();
+                if (hayClase) {
+                    claseCorrespondiente = proximaClase.get();
+                    accesoClase.unlock();
+                    try {
+                        barrerasClases.get(claseCorrespondiente).await();
+                    } catch (BrokenBarrierException ex) {
+                        Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
             }
-
-            esquiadoresListos.acquire(); // Aca esperan los esquiadores
-            
-            if (barreraLibre.get() != 0) {
-                // Asigna la clase correspondiente y espera junto al instructor
-                instructorAvisaProximoInstructor.release();
-                claseCorrespondiente = barreraLibre.get();
-                
-                barrerasClases.get(claseCorrespondiente).await();
-            }
-
-        } catch (InterruptedException | BrokenBarrierException ex) {
+        } catch (InterruptedException ex) {
             Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
         }
         return claseCorrespondiente;
@@ -181,7 +201,6 @@ public class ComplejoInvernal {
         }
     }
 
-
     //Metodo relacionado a los Medios de Elevacion
     public void accederMedio(int eleccionSilla) {
         medios.get(eleccionSilla).usarMolinete();
@@ -191,7 +210,7 @@ public class ComplejoInvernal {
     public boolean accederConfiteria() {
         return confiteria.entrar();
     }
-    
+
     public void servirseConfiteria() {
         confiteria.servir();
     }

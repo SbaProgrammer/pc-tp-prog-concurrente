@@ -25,7 +25,7 @@ public class SimulacionComplejo {
 
         // Crear y lanzar instructores
          for (int i = 1; i <= 5; i++) {
-            Instructor instructor = new Instructor("Instructor" + i, "Apellido" + i, i + 50, 1, complejo);
+            Instructor instructor = new Instructor("Instructor" + i, "Apellido" + i, i + 50, i, complejo);
             Thread threadInstructor = new Thread(instructor, "Instructor " + (i ));
             threads.add(threadInstructor);
             threadInstructor.start();

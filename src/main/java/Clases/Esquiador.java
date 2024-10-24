@@ -38,7 +38,7 @@ public class Esquiador extends Persona {
                     System.out.println(" [" + Thread.currentThread().getName() + "] Obtuvo su dinero otra vez, pues no se cumplio la condicion de la Clase");
                 }
             }
-
+            /*
             // Esquiador [Esquia]
             if (eleccionConfiteria == 1) {
                 // Esquiador [Si hay lugar en la Confiteria accede]
@@ -50,7 +50,7 @@ public class Esquiador extends Persona {
             
             //Simular tiempo en que esquia
             
-            // Aca deberia salir del complejo
+            // Aca deberia salir del complejo */
         }
     }
 }

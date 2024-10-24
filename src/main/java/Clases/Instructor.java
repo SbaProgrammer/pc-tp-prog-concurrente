@@ -13,10 +13,9 @@ public class Instructor extends Persona {
     @Override
     public void run() {
         while (complejo.estaAbierto()) {
-            //System.out.println("PASO");
-            complejo.esperarEnCabina(claseCorresp);
-            complejo.darClase(claseCorresp);
-            // Aca deberia salir del complejo
+            if (complejo.esperarEnCabina(claseCorresp)) {
+                complejo.darClase(claseCorresp);
+            }
         }
     }
 }
