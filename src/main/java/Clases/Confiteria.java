@@ -27,12 +27,12 @@ public class Confiteria {
     private int mostradoresPostreDisponibles = 1;
 
     public synchronized boolean entrar() {
+        boolean entro = false;
         if (capacidadDisponible > 0) {
             capacidadDisponible--;
-            return true;
-        } else {
-            return false;
-        }
+            entro = true;
+        } 
+        return entro;
     }
 
     private int random(int limInferior, int limSuperior) {
