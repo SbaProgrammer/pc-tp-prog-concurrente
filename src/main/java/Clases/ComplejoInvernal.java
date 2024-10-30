@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,14 +21,16 @@ public class ComplejoInvernal {
 
     private final List<MedioElevacion> medios = new ArrayList<>();
     private static final int HORA_APERTURA = 10, HORA_CIERRE = 17;
-    private final AtomicInteger cantEsperandoClase = new AtomicInteger(0), proximaClase = new AtomicInteger(0), horaActual = new AtomicInteger(9), cantParaClase = new AtomicInteger(0);
-
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
+    private final AtomicInteger cantEsperandoClase = new AtomicInteger(0),
+            proximaClase = new AtomicInteger(0),
+            horaActual = new AtomicInteger(9),
+            cantParaClase = new AtomicInteger(0);
+    private boolean activo = true;
     private final Lock accesoClase = new ReentrantLock(true);
     private final Condition cabina = accesoClase.newCondition(), asientos = accesoClase.newCondition();  // Usamos la condición ya existente
-    private final Semaphore postClass[] = {new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true)};
+    private final Semaphore postClass[] = {new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true), new Semaphore(0, true),new Semaphore(0, true)};
     private final Confiteria confiteria = new Confiteria();
+    private boolean medioAbiertos = false;
 
     // Metodos relacionados al "Complejo Invernal"
     public ComplejoInvernal() {
@@ -40,7 +40,7 @@ public class ComplejoInvernal {
         }
 
         // Crear barreras para cada clase concurrente
-        for (int i = 0; i < NUM_BARRERAS; i++) {
+        for (int i = 0; i <= NUM_BARRERAS; i++) {
             barrerasClases.add(new CyclicBarrier(5, new Runnable() {
                 @Override
                 public void run() {
@@ -50,31 +50,53 @@ public class ComplejoInvernal {
         }
 
         // Iniciar Simulación
-        scheduler.scheduleAtFixedRate(() -> {
-            int hora = horaActual.incrementAndGet();
-            System.out.println(" [Complejo] Hora actual: " + hora + ":00");
-            if (hora == HORA_APERTURA) {
-                System.out.println(" [Complejo] Medios de elevación abiertos.");
-                for (MedioElevacion medio : medios) {
-                    medio.abrir();
+        iniciarRelojSimulado();
+    }
+
+    private void iniciarRelojSimulado() {
+
+        // Para iniciar el funcionamiento del complejo invernal
+        Thread reloj = new Thread(() -> {
+            
+            while (activo) {
+                try {
+                    int hora = horaActual.incrementAndGet();
+                    System.out.println(" [Complejo] Hora actual: " + hora + ":00");
+
+                    if (hora == HORA_APERTURA) {
+                        for (MedioElevacion medio : medios) {
+                            medio.abrir(); // ACA ABRE
+                        }
+                        medioAbiertos = true;
+                        System.out.println(" [Complejo] Medios de elevación abiertos.");                       
+                    } else if (hora == HORA_CIERRE) {
+                        activo = false;
+                        
+                        accesoClase.lock();
+                            asientos.signalAll();
+                            cabina.signalAll();
+                        accesoClase.unlock();
+                        
+                        cerrarMediosElevacion();
+                        System.out.println(" [Complejo] Simulación finalizada.");
+                    }
+                    Thread.sleep(5000);  // Cada "hora" pasa cada 5 segundos
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
-            } else if (hora == HORA_CIERRE) {
-                cerrarMediosElevacion();
-                scheduler.shutdown(); // Detiene el scheduler después de cerrar los medios
-                System.out.println(" [Complejo] Simulación finalizada.");
             }
-        }, 0, 5, TimeUnit.SECONDS); // Simula una hora por segundo para rapidez
+        });
+        reloj.start();
     }
 
     private void cerrarMediosElevacion() {
-        System.out.println(" [Complejo] Medios de elevación cerrados.");
         for (MedioElevacion medio : medios) {
             medio.cerrar();
         }
     }
 
     public boolean estaAbierto() {
-        return horaActual.get() >= HORA_APERTURA && horaActual.get() < HORA_CIERRE;
+        return activo && medioAbiertos;
     }
 
     // Metodos relacionados a acciones que toma el "Instructor"
@@ -84,48 +106,47 @@ public class ComplejoInvernal {
             accesoClase.lock();
             System.out.println(" [" + Thread.currentThread().getName() + "] Esperando en Cabina.");
 
-            // Espera hasta que haya 4 esquiadores listos o se cierre el complejo
+            
             while ((cantEsperandoClase.get() < 4 || proximaClase.get() != 0) && estaAbierto() && daraClases) {
                 cabina.await(15, TimeUnit.SECONDS); // Espera por un tiempo limitado
-                // System.out.println(" [" + Thread.currentThread().getName() + "] Desperto");
+                
                 if (cantEsperandoClase.get() < 4) {
-                    //System.out.println("Entro 1 ?");
-                    asientos.signalAll();
+                    
                     if (!estaAbierto()) {
                         daraClases = false;
                     }
+                    asientos.signalAll();
+                } else if (cantEsperandoClase.get() >= 4){
+                    asientos.signalAll();
                 }
             }
-            //System.out.println("Salio"); 
             if (daraClases) {
-                // System.out.println("Entro 2 ?");
                 proximaClase.set(claseCorrespondiente);
-                // Le podria avisar a 4
-                asientos.signalAll();                
+
+                asientos.signalAll();
                 accesoClase.unlock();
-                 
+
                 barrerasClases.get(claseCorrespondiente).await(); // El instructor espera en la barrera
                 proximaClase.set(0);
                 cantParaClase.addAndGet(-4);
-                
+
                 accesoClase.lock();
                 try {
                     if (cantEsperandoClase.get() >= 4) {
-                        
                         cabina.signal();
                     }
                 } finally {
                     accesoClase.unlock();
                 }
-            } else{
+            } else {
                 accesoClase.unlock();
             }
-            
+
         } catch (InterruptedException ex) {
             Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
         } catch (BrokenBarrierException ex) {
             Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
-        } 
+        }
         return daraClases;
     }
 
@@ -159,10 +180,10 @@ public class ComplejoInvernal {
                 }
 
                 //Esperan a que el instructor les avise
-                while ((proximaClase.get() == 0 || cantParaClase.get() >= 4 ) && hayClase )  {
+                while ((proximaClase.get() == 0 || cantParaClase.get() >= 4) && hayClase) {
                     System.out.println(" [" + Thread.currentThread().getName() + "] Espera en los asientos ");
                     asientos.await();
-                    
+
                     if (cantEsperandoClase.get() < 4 && proximaClase.get() == 0) {
                         //Si fueron avisados y no habian 4 es porque se tienen q retirar
                         hayClase = false;
@@ -176,7 +197,8 @@ public class ComplejoInvernal {
                     claseCorrespondiente = proximaClase.get();
                     accesoClase.unlock();
                     try {
-                        barrerasClases.get(claseCorrespondiente).await();
+                        System.out.println("claseCorrespondiente:  "+ claseCorrespondiente);
+                        barrerasClases.get( claseCorrespondiente ).await();
                     } catch (BrokenBarrierException ex) {
                         Logger.getLogger(ComplejoInvernal.class.getName()).log(Level.SEVERE, null, ex);
                     }

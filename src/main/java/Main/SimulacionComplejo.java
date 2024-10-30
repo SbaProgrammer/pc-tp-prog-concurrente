@@ -15,8 +15,8 @@ public class SimulacionComplejo {
         List<Thread> threads = new ArrayList<>();
 
         // Crear y lanzar esquiadores
-        for (int i = 0; i < 9; i++) {
-            boolean esPrincipiante = i % 2 == 0;
+        for (int i = 0; i < 20; i++) {
+            //boolean esPrincipiante = i % 2 == 0;
             Esquiador esquiador = new Esquiador("Esquiador" + i, "Apellido" + i, i, true, complejo);
             Thread threadEsquiador = new Thread(esquiador, "Esquiador " + (i + 1));
             threads.add(threadEsquiador);

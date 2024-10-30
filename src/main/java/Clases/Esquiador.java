@@ -2,6 +2,8 @@
 package Clases;
 
 import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Esquiador extends Persona {
 
@@ -19,9 +21,15 @@ public class Esquiador extends Persona {
 
     @Override
     public void run() {
-        // Esquiador [ Se fija si esta el Complejo Abierto]
+        try {
+            // [Esquiador] Yendo al cerro
+            Thread.sleep(2000); 
+        } catch (InterruptedException ex) {
+            Logger.getLogger(Esquiador.class.getName()).log(Level.SEVERE, null, ex);
+        }
         if(complejo.estaAbierto()) {
              
+            
             // Esquiador [Elecciones de Silla y Confiteria]
             int eleccionSilla = random(0, 3);
             int eleccionConfiteria = random(0, 1);
@@ -38,7 +46,7 @@ public class Esquiador extends Persona {
                     System.out.println(" [" + Thread.currentThread().getName() + "] Obtuvo su dinero otra vez, pues no se cumplio la condicion de la Clase");
                 }
             }
-            /*
+            
             // Esquiador [Esquia]
             if (eleccionConfiteria == 1) {
                 // Esquiador [Si hay lugar en la Confiteria accede]
@@ -50,7 +58,9 @@ public class Esquiador extends Persona {
             
             //Simular tiempo en que esquia
             
-            // Aca deberia salir del complejo */
-        }
+            // Aca deberia salir del complejo 
+                
+            }
+        
     }
 }
